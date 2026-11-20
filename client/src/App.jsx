@@ -12,6 +12,7 @@ import ImportReview from './pages/ImportReview.jsx';
 import Transactions from './pages/Transactions.jsx';
 import Statements from './pages/Statements.jsx';
 import StatementDetails from './pages/StatementDetails.jsx';
+import AIAssistant from './pages/AIAssistant.jsx';
 
 export default function App() {
   return (
@@ -25,9 +26,10 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
 
-          {/* Statement Analysis App Routes (Direct access, zero friction) */}
+          {/* Statement Analysis App Routes */}
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/ai-assistant" element={<AIAssistant />} />
             <Route path="/upload" element={<UploadStatement />} />
             <Route path="/review" element={<ImportReview />} />
             <Route path="/transactions" element={<Transactions />} />

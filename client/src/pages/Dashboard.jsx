@@ -8,6 +8,13 @@ import {
   UploadCloud,
   FileText,
   Calendar,
+  Sparkles,
+  Download,
+  AlertTriangle,
+  Lightbulb,
+  Building2,
+  ShieldCheck,
+  HeartPulse,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -43,6 +50,7 @@ export default function Dashboard() {
   const [summary, setSummary] = useState(null);
   const [monthlyData, setMonthlyData] = useState([]);
   const [categoryData, setCategoryData] = useState([]);
+  const [merchants, setMerchants] = useState([]);
   const [recentTxns, setRecentTxns] = useState([]);
   const [rangePreset, setRangePreset] = useState('ALL');
   const [loading, setLoading] = useState(true);
@@ -66,16 +74,16 @@ export default function Dashboard() {
     }
 
     try {
-      const [sumRes, monthRes, catRes, txnRes] = await Promise.all([
+      const [sumRes, monthRes, catRes, merchantRes, txnRes] = await Promise.all([
         analyticsService.getSummary(from, to),
         analyticsService.getMonthly(from, to),
         analyticsService.getCategories('DEBIT', from, to),
-        transactionService.getTransactions({ limit: 8, sort: 'date_desc' }),
+        analyticsService.getMerchants(from, to),
+        transactionService.getTransactions({ limit: 6, sort: 'date_desc' }),
       ]);
 
       setSummary(sumRes);
 
-      // Format monthly for Recharts
       const formattedMonthly = (monthRes.months || []).map((m) => ({
         month: m.month,
         Credits: m.creditsPaise / 100,
@@ -83,7 +91,6 @@ export default function Dashboard() {
       }));
       setMonthlyData(formattedMonthly);
 
-      // Format categories for Recharts
       const formattedCats = (catRes.categories || []).map((c) => ({
         name: c.category,
         value: c.totalPaise / 100,
@@ -91,6 +98,7 @@ export default function Dashboard() {
       }));
       setCategoryData(formattedCats);
 
+      setMerchants(merchantRes.merchants || []);
       setRecentTxns(txnRes.transactions || []);
     } catch (err) {
       console.error('Failed to load dashboard:', err);
@@ -105,69 +113,116 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
-      {/* Top Header & Range Filter */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Top Header & Report Actions */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900 tracking-tight">Financial Overview</h1>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tight">
+            Personal Financial Intelligence
+          </h1>
           <p className="text-xs text-slate-500 mt-1">
-            Aggregated statement totals computed via exact integer paise arithmetic.
+            Deterministic financial analysis, merchant recognition, anomaly detection & local AI.
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5 bg-white border border-slate-200 p-1 rounded-xl shadow-xs self-start">
-          <Calendar className="w-3.5 h-3.5 text-slate-400 ml-2" />
-          {['ALL', '30D', '90D', 'YEAR'].map((preset) => (
-            <button
-              key={preset}
-              onClick={() => setRangePreset(preset)}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition ${
-                rangePreset === preset
-                  ? 'bg-brand-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              {preset === 'ALL'
-                ? 'All Time'
-                : preset === '30D'
-                ? 'Last 30 Days'
-                : preset === '90D'
-                ? 'Last 90 Days'
-                : 'This Year'}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* AI Assistant Button */}
+          <Link
+            to="/ai-assistant"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-700 hover:to-indigo-700 text-white font-bold text-xs shadow-sm transition"
+          >
+            <Sparkles className="w-4 h-4 text-amber-300" />
+            <span>Ask AI Analyst</span>
+          </Link>
+
+          {/* Download PDF Report */}
+          <a
+            href={analyticsService.getPDFReportUrl()}
+            download
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs shadow-xs transition"
+          >
+            <Download className="w-3.5 h-3.5 text-slate-500" />
+            <span>PDF Report</span>
+          </a>
+
+          {/* Download Excel Report */}
+          <a
+            href={analyticsService.getExcelReportUrl()}
+            download
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs shadow-xs transition"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Excel (.xlsx)</span>
+          </a>
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+      {/* Flagged Anomalies Banner if any */}
+      {summary?.anomalies && summary.anomalies.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4.5 shadow-xs flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div className="text-xs text-amber-900 space-y-1">
+            <p className="font-bold text-amber-950 text-sm">
+              Flagged Unusual Transactions ({summary.anomalies.length})
+            </p>
+            <p className="text-amber-800">
+              Our automated audit flagged high-value expenses or potential duplicate charges for your review:
+            </p>
+            <div className="space-y-1 pt-1">
+              {summary.anomalies.slice(0, 3).map((a, i) => (
+                <div key={i} className="flex items-center gap-2 font-medium">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                  <span>
+                    <strong>{a.transaction?.description}</strong>: {formatINR(a.transaction?.amountPaise)} — {a.reason}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <SummaryCard
-          title="Total Inflow (Credits)"
+          title="Total Income"
           amount={formatINR(summary?.creditsPaise || 0)}
-          subtitle="Salary, refunds, dividends & deposits"
+          subtitle="Salary & inflows"
           icon={TrendingUp}
           color="emerald"
         />
         <SummaryCard
-          title="Total Outflow (Debits)"
+          title="Total Outflows"
           amount={formatINR(summary?.debitsPaise || 0)}
-          subtitle="Expenses, bills, ATM & withdrawals"
+          subtitle="All debit entries"
           icon={TrendingDown}
           color="rose"
         />
         <SummaryCard
-          title="Net Cash Flow"
-          amount={formatINR(summary?.netCashFlowPaise || 0)}
-          subtitle="Credits minus debits (Not net savings)"
-          icon={ArrowRightLeft}
-          color={(summary?.netCashFlowPaise || 0) >= 0 ? 'indigo' : 'amber'}
+          title="Real Spending"
+          amount={formatINR(summary?.actualConsumptionSpendPaise || 0)}
+          subtitle="Excludes P2P transfers"
+          icon={Receipt}
+          color="indigo"
         />
         <SummaryCard
-          title="Transactions Analyzed"
-          amount={String(summary?.transactionCount || 0)}
-          subtitle="Across imported statements"
-          icon={Receipt}
-          color="blue"
+          title="Transfers (P2P/Self)"
+          amount={formatINR(summary?.totalTransfersPaise || 0)}
+          subtitle="Person-to-person & internal"
+          icon={ArrowRightLeft}
+          color="amber"
         />
+        <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm transition flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Financial Health</p>
+            <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100">
+              <HeartPulse className="w-5 h-5" />
+            </div>
+          </div>
+          <div className="mt-2">
+            <h3 className="text-2xl font-black text-slate-900">{summary?.healthScore || 50} / 100</h3>
+            <p className="text-xs text-slate-500 mt-1">Savings Rate: {summary?.savingsRate || 0}%</p>
+          </div>
+        </div>
       </div>
 
       {/* Charts Section */}
@@ -176,8 +231,8 @@ export default function Dashboard() {
         <div className="lg:col-span-2 bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-base font-bold text-slate-900">Monthly Cash Flow</h2>
-              <p className="text-xs text-slate-500">Comparing total credits and debits per month</p>
+              <h2 className="text-base font-bold text-slate-900">Monthly Cash Flow Trend</h2>
+              <p className="text-xs text-slate-500">Inflow vs outflow comparison</p>
             </div>
             <span className="text-[11px] font-semibold text-slate-400 bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200">
               Values in ₹ (Rupees)
@@ -187,7 +242,7 @@ export default function Dashboard() {
           {monthlyData.length === 0 ? (
             <div className="h-64 flex flex-col items-center justify-center text-slate-400 text-xs">
               <FileText className="w-8 h-8 text-slate-300 mb-2" />
-              <span>No monthly data available yet. Import a statement to view trends.</span>
+              <span>No monthly data available yet. Upload a statement to begin.</span>
             </div>
           ) : (
             <div className="h-72 w-full">
@@ -199,7 +254,10 @@ export default function Dashboard() {
                     tickFormatter={(v) => (v >= 1000 ? `₹${(v / 1000).toFixed(0)}k` : `₹${v}`)}
                   />
                   <Tooltip
-                    formatter={(value) => [new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(value), '']}
+                    formatter={(value) => [
+                      new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(value),
+                      '',
+                    ]}
                   />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
                   <Bar dataKey="Credits" fill="#10b981" radius={[4, 4, 0, 0]} />
@@ -271,6 +329,72 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Intelligence Row: Top Merchants & Potential Savings */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Top Merchants Card */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-brand-600" />
+                <span>Top Recipient Merchants</span>
+              </h2>
+              <p className="text-xs text-slate-500">Merchants receiving the largest share of payments</p>
+            </div>
+          </div>
+
+          {merchants.length === 0 ? (
+            <p className="text-xs text-slate-400 py-6 text-center">No merchant data available yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {merchants.slice(0, 5).map((m, idx) => (
+                <div key={m.merchant} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200/70 text-xs">
+                  <div>
+                    <span className="font-bold text-slate-900">{idx + 1}. {m.merchant}</span>
+                    <span className="block text-[11px] text-slate-400 mt-0.5">{m.count} payments • {m.category}</span>
+                  </div>
+                  <span className="font-bold text-slate-900">{formatINR(m.totalPaise)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Potential Savings Opportunities Card */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Lightbulb className="w-4 h-4 text-amber-500" />
+                <span>Potential Savings Opportunities</span>
+              </h2>
+              <p className="text-xs text-slate-500">Actionable analyst recommendations</p>
+            </div>
+          </div>
+
+          {!summary?.savingsOpportunities || summary.savingsOpportunities.length === 0 ? (
+            <div className="p-6 bg-emerald-50 border border-emerald-100 rounded-xl text-xs text-emerald-800">
+              <p className="font-semibold text-emerald-950">Discretionary Spending in Control</p>
+              <p className="mt-1">
+                Your spending in food delivery, e-commerce, and entertainment is well-balanced. Keep up your current savings trajectory!
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {summary.savingsOpportunities.map((s, idx) => (
+                <div key={idx} className="p-3.5 rounded-xl bg-amber-50/60 border border-amber-200 text-xs space-y-1">
+                  <div className="flex items-center justify-between font-bold text-amber-950">
+                    <span>{s.category}</span>
+                    <span className="text-emerald-700">Save ~{formatINR(s.potentialMonthlySavingsPaise)} / mo</span>
+                  </div>
+                  <p className="text-slate-600 text-[11px] leading-relaxed">{s.recommendation}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Recent Transactions Table */}
       <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
         <div className="p-6 border-b border-slate-200 flex items-center justify-between">
@@ -290,7 +414,7 @@ export default function Dashboard() {
           <div className="py-12 text-center text-slate-400 text-xs">
             <UploadCloud className="w-10 h-10 text-slate-300 mx-auto mb-3" />
             <p className="font-semibold text-slate-600 text-sm">No transactions found</p>
-            <p className="mt-1">Upload a CSV or PDF statement to see transactions and analytics.</p>
+            <p className="mt-1">Upload a PDF, CSV, or Excel statement to see transactions and analytics.</p>
             <Link
               to="/upload"
               className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-brand-600 text-white font-semibold text-xs shadow-sm hover:bg-brand-700 transition"

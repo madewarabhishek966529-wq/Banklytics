@@ -1,9 +1,10 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FileText, ArrowLeftRight, UploadCloud, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, FileText, ArrowLeftRight, UploadCloud, Sparkles, ShieldCheck } from 'lucide-react';
 
 const navItems = [
   { label: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
+  { label: 'AI Financial Analyst', path: '/ai-assistant', icon: Sparkles, badge: 'AI' },
   { label: 'Transactions', path: '/transactions', icon: ArrowLeftRight },
   { label: 'Statements', path: '/statements', icon: FileText },
   { label: 'Upload Statement', path: '/upload', icon: UploadCloud },
@@ -21,15 +22,22 @@ export default function Sidebar() {
               key={item.path}
               to={item.path}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition ${
+                `flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition ${
                   isActive
                     ? 'bg-brand-50 text-brand-700 font-semibold shadow-xs'
                     : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                 }`
               }
             >
-              <Icon className="w-4 h-4" />
-              <span>{item.label}</span>
+              <div className="flex items-center gap-3">
+                <Icon className={`w-4 h-4 ${item.badge ? 'text-brand-600' : ''}`} />
+                <span>{item.label}</span>
+              </div>
+              {item.badge && (
+                <span className="px-1.5 py-0.5 text-[10px] font-bold rounded bg-brand-100 text-brand-700">
+                  {item.badge}
+                </span>
+              )}
             </NavLink>
           );
         })}
@@ -38,10 +46,10 @@ export default function Sidebar() {
       <div className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-500">
         <div className="flex items-center gap-1.5 font-semibold text-slate-700 mb-1">
           <ShieldCheck className="w-4 h-4 text-emerald-600" />
-          <span>Local Financial Privacy</span>
+          <span>Zero API Key Policy</span>
         </div>
         <p className="text-[11px] leading-relaxed text-slate-500">
-          Raw statements are processed privately. Calculations are strictly deterministic integer paise.
+          Local parsing, local Ollama AI intelligence, and deterministic paise calculations. 100% private.
         </p>
       </div>
     </aside>

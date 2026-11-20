@@ -4,13 +4,14 @@ import { Statement } from '../../models/Statement.js';
 import { Transaction } from '../../models/Transaction.js';
 import { parseCSV } from '../../parsers/csv/csvParser.js';
 import { parsePDF } from '../../parsers/pdf/pdfParser.js';
+import { parseExcel } from '../../parsers/excel/excelParser.js';
+import { parseWithOCR } from '../../parsers/ocr/ocrParser.js';
 import { reconcileStatement } from '../../services/reconcileStatement.js';
 import { normalizeTransaction } from '../../services/normalizeTransaction.js';
 
 /**
  * POST /api/v1/statements/preview
- * Analyzes uploaded file and returns candidate transactions with reconciliation summary.
- * Does not write to DB.
+ * Analyzes uploaded statement (PDF, CSV, Excel, Image OCR) and returns preview.
  */
 export async function previewStatement(req, res, next) {
   try {
@@ -18,7 +19,7 @@ export async function previewStatement(req, res, next) {
       return res.status(400).json({
         error: {
           code: 'FILE_REQUIRED',
-          message: 'Please provide a bank statement file (CSV or PDF)',
+          message: 'Please provide a bank statement file (PDF, CSV, or Excel)',
         },
       });
     }
@@ -37,9 +38,35 @@ export async function previewStatement(req, res, next) {
     let parsedResult;
     let fileType = 'CSV';
 
-    if (ext === '.pdf' || mimetype.includes('pdf')) {
+    if (ext === '.xlsx' || ext === '.xls') {
+      fileType = 'EXCEL';
+      parsedResult = await parseExcel(buffer);
+    } else if (ext === '.pdf' || mimetype.includes('pdf')) {
       fileType = 'PDF';
       parsedResult = await parsePDF(buffer);
+      // Fallback to OCR if PDF is an image-based scanned file
+      if (parsedResult.isScanned && buffer.length > 0) {
+        try {
+          const ocrRes = await parseWithOCR(buffer);
+          if (ocrRes.transactions?.length > 0) {
+            parsedResult.transactions = ocrRes.transactions;
+            parsedResult.isScanned = false;
+            parsedResult.warnings.push('Processed with local Tesseract OCR engine.');
+          }
+        } catch (ocrErr) {
+          // keep original scanned warning
+        }
+      }
+    } else if (['.png', '.jpg', '.jpeg', '.tiff'].includes(ext)) {
+      fileType = 'IMAGE_OCR';
+      const ocrRes = await parseWithOCR(buffer);
+      parsedResult = {
+        transactions: ocrRes.transactions,
+        rejectedRows: [],
+        warnings: ['Scanned image parsed via local Tesseract OCR. Review transactions carefully.'],
+        metadata: ocrRes.metadata,
+        bankName: 'Scanned Statement',
+      };
     } else {
       fileType = 'CSV';
       parsedResult = parseCSV(buffer);
@@ -150,14 +177,12 @@ export async function confirmStatement(req, res, next) {
       });
     }
 
-    // Reconcile and calculate final totals
     const reconciliation = reconcileStatement({
       transactions,
       openingBalancePaise,
       closingBalancePaise,
     });
 
-    // Create statement
     const statement = await Statement.create({
       userId: req.user._id,
       originalFileName,
@@ -176,9 +201,7 @@ export async function confirmStatement(req, res, next) {
       warnings: warnings.concat(reconciliation.notes),
     });
 
-    // Prepare transactions with validated fields and statementId
     const recordsToInsert = transactions.map((t, idx) => {
-      // Re-run normalization to ensure clean data
       const norm = normalizeTransaction({
         date: t.transactionDate,
         description: t.description,
@@ -215,7 +238,6 @@ export async function confirmStatement(req, res, next) {
 
 /**
  * GET /api/v1/statements
- * Paginated list of user's statements.
  */
 export async function getStatements(req, res, next) {
   try {
@@ -247,7 +269,6 @@ export async function getStatements(req, res, next) {
 
 /**
  * GET /api/v1/statements/:id
- * Single statement details + reconciliation
  */
 export async function getStatementById(req, res, next) {
   try {
@@ -288,7 +309,6 @@ export async function getStatementById(req, res, next) {
 
 /**
  * DELETE /api/v1/statements/:id
- * Cascades to delete all transactions associated with the statement.
  */
 export async function deleteStatement(req, res, next) {
   try {
@@ -325,7 +345,6 @@ export async function deleteStatement(req, res, next) {
 
 /**
  * GET /api/v1/statements/:id/transactions
- * Paginated transactions belonging to a specific statement.
  */
 export async function getStatementTransactions(req, res, next) {
   try {

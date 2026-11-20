@@ -1,5 +1,9 @@
 import { Transaction } from '../../models/Transaction.js';
 import { sumPaise } from '../../utils/money.js';
+import { analyzeFinancialHealth } from '../../services/financialIntelligence.js';
+import { aggregateMerchants } from '../../services/merchantRecognition.js';
+import { aggregateTransfers } from '../../services/transferDetection.js';
+import { generatePDFReport, generateExcelReport } from '../../services/reportGenerator.js';
 
 function buildDateQuery(userId, from, to) {
   const query = { userId };
@@ -22,48 +26,24 @@ export async function getSummary(req, res, next) {
   try {
     const { from, to } = req.query;
     const query = buildDateQuery(req.user._id, from, to);
+    const transactions = await Transaction.find(query).select('amountPaise direction classification category');
 
-    const transactions = await Transaction.find(query).select('amountPaise direction classification');
-
-    const creditsList = [];
-    const debitsList = [];
-    let incomePaise = 0;
-    let expensePaise = 0;
-    let transferPaise = 0;
-    let refundPaise = 0;
-
-    for (const t of transactions) {
-      const amt = t.amountPaise;
-      if (t.direction === 'CREDIT') {
-        creditsList.push(amt);
-      } else {
-        debitsList.push(amt);
-      }
-
-      if (t.classification === 'INCOME') incomePaise += amt;
-      else if (t.classification === 'EXPENSE') expensePaise += amt;
-      else if (t.classification === 'TRANSFER') transferPaise += amt;
-      else if (t.classification === 'REFUND') refundPaise += amt;
-    }
-
-    const creditsPaise = sumPaise(creditsList);
-    const debitsPaise = sumPaise(debitsList);
-    const netCashFlowPaise = creditsPaise - debitsPaise;
+    const intelligence = analyzeFinancialHealth({ transactions });
 
     return res.json({
       success: true,
       currency: 'INR',
       range: { from: from || null, to: to || null },
-      creditsPaise,
-      debitsPaise,
-      netCashFlowPaise,
+      creditsPaise: intelligence.summary.totalIncomePaise,
+      debitsPaise: intelligence.summary.totalExpensesPaise,
+      actualConsumptionSpendPaise: intelligence.summary.actualConsumptionSpendPaise,
+      totalTransfersPaise: intelligence.summary.totalTransfersPaise,
+      netCashFlowPaise: intelligence.summary.netCashFlowPaise,
+      savingsRate: intelligence.summary.savingsRate,
+      healthScore: intelligence.summary.healthScore,
       transactionCount: transactions.length,
-      classificationBreakdown: {
-        incomePaise,
-        expensePaise,
-        transferPaise,
-        refundPaise,
-      },
+      anomalies: intelligence.anomalies,
+      savingsOpportunities: intelligence.savingsOpportunities,
     });
   } catch (error) {
     next(error);
@@ -77,42 +57,22 @@ export async function getMonthlyTrends(req, res, next) {
   try {
     const { from, to } = req.query;
     const query = buildDateQuery(req.user._id, from, to);
+    const transactions = await Transaction.find(query);
 
-    const transactions = await Transaction.find(query)
-      .sort({ transactionDate: 1 })
-      .select('transactionDate amountPaise direction');
+    const intelligence = analyzeFinancialHealth({ transactions });
 
-    const monthlyMap = new Map();
-
-    for (const t of transactions) {
-      const date = new Date(t.transactionDate);
-      const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-
-      if (!monthlyMap.has(yearMonth)) {
-        monthlyMap.set(yearMonth, {
-          month: yearMonth,
-          creditsPaise: 0,
-          debitsPaise: 0,
-          netCashFlowPaise: 0,
-          count: 0,
-        });
-      }
-
-      const item = monthlyMap.get(yearMonth);
-      item.count++;
-      if (t.direction === 'CREDIT') {
-        item.creditsPaise += t.amountPaise;
-      } else {
-        item.debitsPaise += t.amountPaise;
-      }
-      item.netCashFlowPaise = item.creditsPaise - item.debitsPaise;
-    }
-
-    const months = Array.from(monthlyMap.values());
+    const formattedMonths = intelligence.monthlyTrends.map((m) => ({
+      month: m.month,
+      creditsPaise: m.incomePaise,
+      debitsPaise: m.expensesPaise,
+      netCashFlowPaise: m.netPaise,
+      count: m.count,
+    }));
 
     return res.json({
       success: true,
-      months,
+      months: formattedMonths,
+      highestSpendingMonth: intelligence.highestSpendingMonth,
     });
   } catch (error) {
     next(error);
@@ -126,38 +86,55 @@ export async function getCategoryBreakdown(req, res, next) {
   try {
     const { from, to, direction = 'DEBIT' } = req.query;
     const query = buildDateQuery(req.user._id, from, to);
-    query.direction = direction.toUpperCase();
+    const transactions = await Transaction.find(query);
 
-    const transactions = await Transaction.find(query).select('category amountPaise');
-
-    const catMap = new Map();
-    let totalPaise = 0;
-
-    for (const t of transactions) {
-      const cat = t.category || 'Other / Needs Review';
-      totalPaise += t.amountPaise;
-
-      if (!catMap.has(cat)) {
-        catMap.set(cat, { category: cat, totalPaise: 0, count: 0 });
-      }
-
-      const item = catMap.get(cat);
-      item.totalPaise += t.amountPaise;
-      item.count++;
-    }
-
-    const categories = Array.from(catMap.values())
-      .map((c) => ({
-        ...c,
-        percentage: totalPaise > 0 ? Number(((c.totalPaise / totalPaise) * 100).toFixed(1)) : 0,
-      }))
-      .sort((a, b) => b.totalPaise - a.totalPaise);
+    const intelligence = analyzeFinancialHealth({ transactions });
 
     return res.json({
       success: true,
-      direction: query.direction,
-      totalPaise,
-      categories,
+      direction,
+      totalPaise: intelligence.summary.totalExpensesPaise,
+      categories: intelligence.categoryBreakdown,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * GET /api/v1/analytics/merchants
+ */
+export async function getTopMerchants(req, res, next) {
+  try {
+    const { from, to } = req.query;
+    const query = buildDateQuery(req.user._id, from, to);
+    const transactions = await Transaction.find(query);
+
+    const merchants = aggregateMerchants(transactions);
+
+    return res.json({
+      success: true,
+      merchants,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * GET /api/v1/analytics/transfers
+ */
+export async function getTransferAnalysis(req, res, next) {
+  try {
+    const { from, to } = req.query;
+    const query = buildDateQuery(req.user._id, from, to);
+    const transactions = await Transaction.find(query);
+
+    const transfers = aggregateTransfers(transactions);
+
+    return res.json({
+      success: true,
+      ...transfers,
     });
   } catch (error) {
     next(error);
@@ -183,6 +160,41 @@ export async function getTopTransactions(req, res, next) {
       success: true,
       transactions,
     });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * GET /api/v1/analytics/report/pdf
+ */
+export async function downloadPDFReport(req, res, next) {
+  try {
+    const transactions = await Transaction.find({ userId: req.user._id });
+    const pdfBuffer = await generatePDFReport({ transactions, user: req.user });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="Banklytics_Financial_Report.pdf"');
+    return res.send(pdfBuffer);
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * GET /api/v1/analytics/report/excel
+ */
+export async function downloadExcelReport(req, res, next) {
+  try {
+    const transactions = await Transaction.find({ userId: req.user._id });
+    const excelBuffer = await generateExcelReport({ transactions });
+
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+    res.setHeader('Content-Disposition', 'attachment; filename="Banklytics_Financial_Report.xlsx"');
+    return res.send(excelBuffer);
   } catch (error) {
     next(error);
   }

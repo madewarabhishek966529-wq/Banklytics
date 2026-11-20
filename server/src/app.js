@@ -11,6 +11,7 @@ import authRoutes from './modules/auth/auth.routes.js';
 import statementRoutes from './modules/statements/statements.routes.js';
 import transactionRoutes from './modules/transactions/transactions.routes.js';
 import analyticsRoutes from './modules/analytics/analytics.routes.js';
+import aiRoutes from './modules/ai/ai.routes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -67,6 +68,7 @@ export function createApp() {
   apiRouter.use('/statements', statementRoutes);
   apiRouter.use('/transactions', transactionRoutes);
   apiRouter.use('/analytics', analyticsRoutes);
+  apiRouter.use('/ai', aiRoutes);
 
   app.use('/api/v1', apiRouter);
 
