@@ -1,0 +1,3 @@
+@echo off
+echo Starting Banklytics (Server + Client)...
+npm run dev

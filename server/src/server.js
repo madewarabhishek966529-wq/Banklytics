@@ -7,18 +7,20 @@ import { connectDB } from './config/db.js';
 const PORT = process.env.PORT || 5000;
 
 async function startServer() {
-  try {
-    await connectDB();
-    const app = createApp();
+  const app = createApp();
 
-    app.listen(PORT, () => {
-      console.log(`[Banklytics Server] Running on http://localhost:${PORT}`);
-      console.log(`[Banklytics Server] API Base: http://localhost:${PORT}/api/v1`);
-    });
-  } catch (error) {
-    console.error('[Banklytics Server] Failed to start:', error.message);
-    process.exit(1);
-  }
+  const server = app.listen(PORT, () => {
+    console.log(`[Banklytics Server] Running on http://localhost:${PORT}`);
+    console.log(`[Banklytics Server] API Base: http://localhost:${PORT}/api/v1`);
+  });
+
+  // Attempt database connection in background
+  connectDB().catch((error) => {
+    console.warn(`[Banklytics Server] MongoDB connection notice: ${error.message}`);
+    console.warn(`[Banklytics Server] Please ensure MongoDB is running at ${process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/banklytics'}.`);
+  });
+
+  return server;
 }
 
 startServer();

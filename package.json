@@ -1,0 +1,23 @@
+{
+  "name": "banklytics",
+  "version": "1.0.0",
+  "description": "Banklytics - Bank Statement Analyzer (MERN)",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "build": "npm --prefix client run build",
+    "start": "npm --prefix server start",
+    "test": "npm --prefix server test"
+  },
+  "keywords": [
+    "mern",
+    "bank-statement",
+    "finance",
+    "analytics"
+  ],
+  "author": "",
+  "license": "ISC"
+}

@@ -3,6 +3,9 @@ import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
 
 import authRoutes from './modules/auth/auth.routes.js';
 import statementRoutes from './modules/statements/statements.routes.js';
@@ -10,11 +13,18 @@ import transactionRoutes from './modules/transactions/transactions.routes.js';
 import analyticsRoutes from './modules/analytics/analytics.routes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 export function createApp() {
   const app = express();
 
   // Basic security headers
-  app.use(helmet());
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+    })
+  );
 
   // CORS configuration
   const clientOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:5173';
@@ -60,12 +70,24 @@ export function createApp() {
 
   app.use('/api/v1', apiRouter);
 
-  // 404 handler
-  app.use((req, res) => {
+  // Serve static client assets if client/dist exists
+  const clientDistPath = path.resolve(__dirname, '../../client/dist');
+  if (fs.existsSync(clientDistPath)) {
+    app.use(express.static(clientDistPath));
+    app.get('*', (req, res, next) => {
+      if (req.path.startsWith('/api') || req.path === '/health') {
+        return next();
+      }
+      res.sendFile(path.join(clientDistPath, 'index.html'));
+    });
+  }
+
+  // 404 handler for API routes
+  app.use('/api/*', (req, res) => {
     res.status(404).json({
       error: {
         code: 'NOT_FOUND',
-        message: `Route ${req.method} ${req.originalUrl} not found`,
+        message: `API route ${req.method} ${req.originalUrl} not found`,
       },
     });
   });
