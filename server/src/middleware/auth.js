@@ -1,6 +1,12 @@
 import jwt from 'jsonwebtoken';
 import { User } from '../models/User.js';
 
+export const DEFAULT_USER = {
+  _id: 'default_local_user_1',
+  name: 'Local User',
+  email: 'user@banklytics.local',
+};
+
 export async function authenticate(req, res, next) {
   try {
     let token = null;
@@ -15,12 +21,9 @@ export async function authenticate(req, res, next) {
     }
 
     if (!token) {
-      return res.status(401).json({
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'Authentication token missing or invalid',
-        },
-      });
+      // For simplified local analysis: automatically allow local user
+      req.user = DEFAULT_USER;
+      return next();
     }
 
     const secret = process.env.JWT_SECRET || 'banklytics_super_secret_jwt_key_2026_dev_secure_change_in_production';
@@ -28,22 +31,15 @@ export async function authenticate(req, res, next) {
 
     const user = await User.findById(decoded.userId);
     if (!user) {
-      return res.status(401).json({
-        error: {
-          code: 'UNAUTHORIZED',
-          message: 'User no longer exists',
-        },
-      });
+      req.user = DEFAULT_USER;
+      return next();
     }
 
     req.user = user;
     next();
   } catch (error) {
-    return res.status(401).json({
-      error: {
-        code: 'INVALID_TOKEN',
-        message: 'Invalid or expired authentication token',
-      },
-    });
+    // If token is invalid or expired, gracefully fall back to local user for simple analysis
+    req.user = DEFAULT_USER;
+    next();
   }
 }
