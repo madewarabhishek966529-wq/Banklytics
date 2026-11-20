@@ -22,9 +22,11 @@ export function parseRupeesToPaise(input) {
   const str = String(input).trim();
   if (!str) return 0;
 
-  // Remove currency symbols, commas, quotes, and whitespace
+  // Remove currency words/symbols like Rs. or ₹, commas, quotes, and whitespace
   const sanitized = str
-    .replace(/[₹Rs.\s]/gi, '')
+    .replace(/Rs\./gi, '')
+    .replace(/INR/gi, '')
+    .replace(/[₹Rs\s]/gi, '')
     .replace(/,/g, '')
     .replace(/[()]/g, '');
 

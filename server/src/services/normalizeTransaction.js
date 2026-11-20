@@ -109,7 +109,10 @@ export function normalizeTransaction({
   const finalClassification = classification || autoCat.classification;
 
   // Fingerprint for duplicate detection: date + amount + direction + slug of description
-  const dateStr = parsedDate ? parsedDate.toISOString().slice(0, 10) : 'nodate';
+  const dateStr =
+    parsedDate && !isNaN(parsedDate.getTime())
+      ? parsedDate.toISOString().slice(0, 10)
+      : 'nodate';
   const descSlug = cleanDescription.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 30);
   const fingerprintRaw = `${dateStr}:${finalAmountPaise}:${finalDirection}:${descSlug}`;
   const fingerprint = crypto.createHash('sha256').update(fingerprintRaw).digest('hex');
