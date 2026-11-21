@@ -51,6 +51,16 @@ export function saveDB() {
   }
 }
 
+// Reset in-memory database (for testing)
+export function resetDB() {
+  dbState = {
+    users: [],
+    statements: [],
+    transactions: [],
+  };
+  saveDB();
+}
+
 // Generate unique ObjectId-like 24-char hex string
 export function generateId() {
   return crypto.randomBytes(12).toString('hex');
@@ -181,6 +191,11 @@ class QueryBuilder {
 
 // User Model API
 export const User = {
+  find(query = {}) {
+    const matched = dbState.users.filter((u) => matchesQuery(u, query));
+    return new QueryBuilder(matched);
+  },
+
   async findOne(query) {
     const user = dbState.users.find((u) => matchesQuery(u, query));
     if (!user) return null;
@@ -196,7 +211,13 @@ export const User = {
   async findById(id) {
     const user = dbState.users.find((u) => String(u._id) === String(id));
     if (!user) return null;
-    return { ...user };
+    return {
+      ...user,
+      comparePassword: async (candidate) => {
+        const bcrypt = await import('bcryptjs');
+        return (bcrypt.default || bcrypt).compare(candidate, user.passwordHash);
+      },
+    };
   },
 
   async create(data) {
@@ -209,6 +230,26 @@ export const User = {
     dbState.users.push(user);
     saveDB();
     return user;
+  },
+
+  async updateOne(query, updates) {
+    const user = dbState.users.find((u) => matchesQuery(u, query));
+    if (user) {
+      Object.assign(user, updates, { updatedAt: new Date() });
+      saveDB();
+      return { modifiedCount: 1 };
+    }
+    return { modifiedCount: 0 };
+  },
+
+  async deleteOne(query) {
+    const idx = dbState.users.findIndex((u) => matchesQuery(u, query));
+    if (idx !== -1) {
+      dbState.users.splice(idx, 1);
+      saveDB();
+      return { deletedCount: 1 };
+    }
+    return { deletedCount: 0 };
   },
 };
 
@@ -248,6 +289,24 @@ export const Statement = {
       return { deletedCount: 1 };
     }
     return { deletedCount: 0 };
+  },
+
+  async deleteMany(query) {
+    const initialLen = dbState.statements.length;
+    dbState.statements = dbState.statements.filter((s) => !matchesQuery(s, query));
+    const deletedCount = initialLen - dbState.statements.length;
+    if (deletedCount > 0) saveDB();
+    return { deletedCount };
+  },
+
+  async updateOne(query, updates) {
+    const stmt = dbState.statements.find((s) => matchesQuery(s, query));
+    if (stmt) {
+      Object.assign(stmt, updates, { updatedAt: new Date() });
+      saveDB();
+      return { modifiedCount: 1 };
+    }
+    return { modifiedCount: 0 };
   },
 };
 

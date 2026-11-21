@@ -1,6 +1,19 @@
 import { z } from 'zod';
 import { Transaction } from '../../models/Transaction.js';
 import { paiseToRupees } from '../../utils/money.js';
+import { categorizeTransaction } from '../../services/categorizeTransaction.js';
+
+const createTransactionSchema = z.object({
+  transactionDate: z.string().or(z.date()),
+  description: z.string().min(1, 'Description is required'),
+  direction: z.enum(['CREDIT', 'DEBIT']),
+  amountPaise: z.number().int().positive('Amount must be positive in integer paise'),
+  category: z.string().optional(),
+  classification: z.enum(['INCOME', 'EXPENSE', 'TRANSFER', 'REFUND', 'OTHER']).optional(),
+  reference: z.string().optional(),
+  counterparty: z.string().optional(),
+  statementId: z.string().optional(),
+});
 
 const updateTransactionSchema = z.object({
   description: z.string().min(1).optional(),
@@ -12,6 +25,52 @@ const updateTransactionSchema = z.object({
   counterparty: z.string().optional(),
   isReviewed: z.boolean().optional(),
 });
+
+/**
+ * POST /api/v1/transactions
+ * Create a new manual transaction.
+ */
+export async function createTransaction(req, res, next) {
+  try {
+    const validated = createTransactionSchema.parse(req.body);
+    const date = new Date(validated.transactionDate);
+    if (isNaN(date.getTime())) {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_DATE',
+          message: 'Invalid transaction date provided',
+        },
+      });
+    }
+
+    const category = validated.category || categorizeTransaction(validated.description);
+    const classification = validated.classification || (validated.direction === 'CREDIT' ? 'INCOME' : 'EXPENSE');
+
+    const transaction = await Transaction.create({
+      userId: req.user._id,
+      statementId: validated.statementId || null,
+      transactionDate: date,
+      description: validated.description.trim(),
+      amountPaise: validated.amountPaise,
+      direction: validated.direction,
+      category,
+      classification,
+      reference: validated.reference ? validated.reference.trim() : null,
+      counterparty: validated.counterparty ? validated.counterparty.trim() : null,
+      confidence: 1.0,
+      isReviewed: true,
+      sourceRow: 0,
+      sourcePage: 0,
+    });
+
+    return res.status(201).json({
+      success: true,
+      transaction,
+    });
+  } catch (error) {
+    next(error);
+  }
+}
 
 /**
  * GET /api/v1/transactions

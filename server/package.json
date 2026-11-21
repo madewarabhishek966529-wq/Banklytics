@@ -7,7 +7,13 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:unit": "vitest run tests/money.test.js tests/categorize.test.js tests/reconcile.test.js tests/merchantAndIntelligence.test.js",
+    "test:integration": "vitest run tests/api.test.js",
+    "test:calculations": "vitest run tests/calculationsEdgeCases.test.js tests/money.test.js tests/reconcile.test.js",
+    "test:parsers": "vitest run tests/parsers.test.js tests/csvParser.test.js tests/fixtureStatement.test.js",
+    "test:security": "vitest run tests/security.test.js",
+    "test:performance": "vitest run tests/performance.test.js"
   },
   "keywords": [
     "banklytics",

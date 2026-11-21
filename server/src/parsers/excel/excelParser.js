@@ -133,17 +133,26 @@ export async function parseExcel(excelBuffer) {
         closingBalancePaise = transaction.balancePaise;
       }
     } else {
-      rejectedRows.push({
-        rowNumber: rowNum,
-        raw: row,
-        reasons: errors,
-      });
+      const fullRowText = row.join(' ').toLowerCase();
+      if (fullRowText.includes('opening balance') || fullRowText.includes('brought forward')) {
+        openingBalancePaise = parseRupeesToPaise(balanceVal || amountVal || fullRowText);
+      } else if (fullRowText.includes('closing balance') || fullRowText.includes('carried forward')) {
+        closingBalancePaise = parseRupeesToPaise(balanceVal || amountVal || fullRowText);
+      } else {
+        rejectedRows.push({
+          rowNumber: rowNum,
+          raw: row,
+          reasons: errors,
+        });
+      }
     }
   });
 
   return {
     headers: rawRows[headerIndex] || [],
     detectedMapping,
+    openingBalancePaise,
+    closingBalancePaise,
     transactions: candidateTransactions,
     rejectedRows,
     warnings,

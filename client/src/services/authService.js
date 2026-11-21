@@ -32,4 +32,25 @@ export const authService = {
     const res = await api.get('/auth/me');
     return res.data;
   },
+
+  async loginDemo() {
+    const res = await api.post('/auth/demo');
+    if (res.data.token) {
+      localStorage.setItem('banklytics_token', res.data.token);
+      localStorage.setItem('banklytics_user', JSON.stringify(res.data.user));
+    }
+    return res.data;
+  },
+
+  async changePassword(currentPassword, newPassword) {
+    const res = await api.post('/auth/change-password', { currentPassword, newPassword });
+    return res.data;
+  },
+
+  async deleteAccount() {
+    const res = await api.delete('/auth/account');
+    localStorage.removeItem('banklytics_token');
+    localStorage.removeItem('banklytics_user');
+    return res.data;
+  },
 };

@@ -21,9 +21,12 @@ export async function authenticate(req, res, next) {
     }
 
     if (!token) {
-      // For simplified local analysis: automatically allow local user
-      req.user = DEFAULT_USER;
-      return next();
+      return res.status(401).json({
+        error: {
+          code: 'UNAUTHORIZED',
+          message: 'Authentication token is missing. Please log in.',
+        },
+      });
     }
 
     const secret = process.env.JWT_SECRET || 'banklytics_super_secret_jwt_key_2026_dev_secure_change_in_production';
@@ -31,15 +34,22 @@ export async function authenticate(req, res, next) {
 
     const user = await User.findById(decoded.userId);
     if (!user) {
-      req.user = DEFAULT_USER;
-      return next();
+      return res.status(401).json({
+        error: {
+          code: 'USER_NOT_FOUND',
+          message: 'The account associated with this token no longer exists.',
+        },
+      });
     }
 
     req.user = user;
     next();
   } catch (error) {
-    // If token is invalid or expired, gracefully fall back to local user for simple analysis
-    req.user = DEFAULT_USER;
-    next();
+    return res.status(401).json({
+      error: {
+        code: 'INVALID_TOKEN',
+        message: 'Invalid or expired authentication token. Please log in again.',
+      },
+    });
   }
 }

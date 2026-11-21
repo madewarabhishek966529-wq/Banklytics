@@ -87,6 +87,27 @@ export default function Login() {
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
+
+          <button
+            type="button"
+            disabled={loading}
+            onClick={async () => {
+              setError('');
+              setLoading(true);
+              try {
+                const { authService } = await import('../services/authService.js');
+                const data = await authService.loginDemo();
+                window.location.href = '/dashboard';
+              } catch (err) {
+                setError('Failed to enter demo mode.');
+              } finally {
+                setLoading(false);
+              }
+            }}
+            className="w-full py-2.5 px-4 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-sm transition"
+          >
+            🚀 Explore Demo Account (1-Click)
+          </button>
         </form>
 
         <p className="mt-6 text-center text-xs text-slate-500">

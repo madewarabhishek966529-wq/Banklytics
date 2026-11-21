@@ -37,14 +37,15 @@ export function reconcileStatement({
   let differencePaise = 0;
   let isBalanced = true;
 
-  const hasOpeningAndClosing =
-    openingBalancePaise !== null &&
-    openingBalancePaise !== undefined &&
-    closingBalancePaise !== null &&
-    closingBalancePaise !== undefined;
-
-  if (hasOpeningAndClosing) {
+  if (openingBalancePaise !== null && openingBalancePaise !== undefined) {
     expectedClosingBalancePaise = openingBalancePaise + totalCreditsPaise - totalDebitsPaise;
+  }
+
+  if (
+    expectedClosingBalancePaise !== null &&
+    closingBalancePaise !== null &&
+    closingBalancePaise !== undefined
+  ) {
     differencePaise = closingBalancePaise - expectedClosingBalancePaise;
 
     if (differencePaise === 0) {

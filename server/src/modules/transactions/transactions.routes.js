@@ -1,5 +1,6 @@
 import express from 'express';
 import {
+  createTransaction,
   getTransactions,
   updateTransaction,
   deleteTransaction,
@@ -11,6 +12,7 @@ const router = express.Router();
 
 router.use(authenticate);
 
+router.post('/', createTransaction);
 router.get('/', getTransactions);
 router.get('/export', exportTransactionsCSV);
 router.patch('/:id', updateTransaction);

@@ -2,6 +2,8 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod';
 import { User } from '../../models/User.js';
+import { Statement } from '../../models/Statement.js';
+import { Transaction } from '../../models/Transaction.js';
 
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters').max(100),
@@ -12,6 +14,11 @@ const registerSchema = z.object({
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
   password: z.string().min(1, 'Password is required'),
+});
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1, 'Current password is required'),
+  newPassword: z.string().min(6, 'New password must be at least 6 characters'),
 });
 
 function signToken(userId) {
@@ -130,4 +137,93 @@ export function getMe(req, res) {
       createdAt: req.user.createdAt,
     },
   });
+}
+
+export async function changePassword(req, res, next) {
+  try {
+    const validated = changePasswordSchema.parse(req.body);
+    const user = await User.findById(req.user._id);
+
+    if (!user) {
+      return res.status(404).json({
+        error: {
+          code: 'USER_NOT_FOUND',
+          message: 'User account not found',
+        },
+      });
+    }
+
+    const isMatch = await user.comparePassword(validated.currentPassword);
+    if (!isMatch) {
+      return res.status(400).json({
+        error: {
+          code: 'INVALID_CREDENTIALS',
+          message: 'Current password does not match',
+        },
+      });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(validated.newPassword, salt);
+    await User.updateOne({ _id: user._id }, { passwordHash });
+
+    return res.json({
+      success: true,
+      message: 'Password changed successfully',
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function deleteAccount(req, res, next) {
+  try {
+    const userId = req.user._id;
+
+    // Cascade delete user data
+    await Transaction.deleteMany({ userId });
+    await Statement.deleteMany({ userId });
+    await User.deleteOne({ _id: userId });
+
+    res.clearCookie('token');
+    return res.json({
+      success: true,
+      message: 'Account and all associated financial records permanently deleted',
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function loginDemo(req, res, next) {
+  try {
+    const demoEmail = 'demo@banklytics.local';
+    let demoUser = await User.findOne({ email: demoEmail });
+
+    if (!demoUser) {
+      const salt = await bcrypt.genSalt(10);
+      const passwordHash = await bcrypt.hash('DemoUser@2026', salt);
+      demoUser = await User.create({
+        name: 'Banklytics Demo User',
+        email: demoEmail,
+        passwordHash,
+      });
+    }
+
+    const token = signToken(demoUser._id);
+    setCookieToken(res, token);
+
+    return res.json({
+      success: true,
+      user: {
+        _id: demoUser._id,
+        name: demoUser.name,
+        email: demoUser.email,
+        createdAt: demoUser.createdAt,
+      },
+      token,
+    });
+  } catch (error) {
+    next(error);
+  }
 }

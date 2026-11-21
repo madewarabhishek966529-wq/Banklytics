@@ -86,6 +86,12 @@ export function parseCSV(csvContent, customMapping = null) {
 
   // Use custom mapping override if provided by user
   const effectiveMapping = customMapping || detectedMapping;
+
+  // Validate that critical column mapping exists (at minimum date)
+  if (effectiveMapping.date === undefined || (effectiveMapping.description === undefined && effectiveMapping.debit === undefined && effectiveMapping.amount === undefined)) {
+    throw new Error('CSV file is missing required columns: date and description/amount are required.');
+  }
+
   const headerRow = headerIndex >= 0 ? rawRecords[headerIndex] : [];
 
   const candidateTransactions = [];
@@ -172,6 +178,8 @@ export function parseCSV(csvContent, customMapping = null) {
   return {
     headers: headerRow,
     detectedMapping,
+    openingBalancePaise,
+    closingBalancePaise,
     transactions: candidateTransactions,
     rejectedRows,
     warnings,

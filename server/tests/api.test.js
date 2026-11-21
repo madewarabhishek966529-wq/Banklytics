@@ -17,11 +17,13 @@ vi.mock('../src/models/User.js', () => {
   return {
     User: {
       findOne: vi.fn().mockImplementation(({ email }) => {
-        if (email === 'aditi@example.com') return Promise.resolve(dummyUser);
+        if (email === 'aditi@example.com' || email === 'demo@banklytics.local') return Promise.resolve(dummyUser);
         return Promise.resolve(null);
       }),
       findById: vi.fn().mockResolvedValue(dummyUser),
       create: vi.fn().mockResolvedValue(dummyUser),
+      updateOne: vi.fn().mockResolvedValue({ modifiedCount: 1 }),
+      deleteOne: vi.fn().mockResolvedValue({ deletedCount: 1 }),
     },
   };
 });
@@ -116,6 +118,12 @@ vi.mock('../src/models/Transaction.js', () => {
       }),
       countDocuments: vi.fn().mockResolvedValue(2),
       insertMany: vi.fn().mockResolvedValue(dummyTxns),
+      create: vi.fn().mockImplementation((data) =>
+        Promise.resolve({
+          _id: '707f1f77bcf86cd799439099',
+          ...data,
+        })
+      ),
       findOne: vi.fn().mockResolvedValue(dummyTxns[0]),
       findOneAndDelete: vi.fn().mockResolvedValue(dummyTxns[0]),
       deleteMany: vi.fn().mockResolvedValue({ deletedCount: 2 }),
@@ -254,5 +262,42 @@ describe('Banklytics REST API Controller & End-to-End Suite', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+  });
+
+  it('POST /api/v1/auth/demo issues token for 1-click exploration', async () => {
+    const res = await request(app).post('/api/v1/auth/demo');
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.token).toBeDefined();
+  });
+
+  it('POST /api/v1/auth/change-password changes authenticated user password', async () => {
+    const res = await request(app)
+      .post('/api/v1/auth/change-password')
+      .set('Authorization', `Bearer ${validToken}`)
+      .send({
+        currentPassword: 'hashedpassword',
+        newPassword: 'BrandNewSecurePassword123!',
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+  });
+
+  it('POST /api/v1/transactions creates a manual transaction', async () => {
+    const res = await request(app)
+      .post('/api/v1/transactions')
+      .set('Authorization', `Bearer ${validToken}`)
+      .send({
+        transactionDate: '2026-11-20',
+        description: 'Manual Cash Deposit',
+        direction: 'CREDIT',
+        amountPaise: 500000,
+        category: 'Salary & Income',
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.transaction.amountPaise).toBe(500000);
   });
 });
