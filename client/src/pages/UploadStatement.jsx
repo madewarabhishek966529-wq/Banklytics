@@ -94,6 +94,14 @@ export default function UploadStatement() {
 
       setTimeout(() => {
         if (data && data.preview) {
+          if (!data.preview.transactions || data.preview.transactions.length === 0) {
+            const warningMsg =
+              data.preview.warnings?.[0] ||
+              'No valid transactions were recognized in this file. Please ensure it is a valid bank statement with date, narration, and amount columns.';
+            setError(warningMsg);
+            setLoading(false);
+            return;
+          }
           navigate('/review', { state: { preview: data.preview } });
         } else {
           setError('Unexpected response from parsing engine.');
@@ -104,6 +112,7 @@ export default function UploadStatement() {
       clearInterval(stageInterval);
       const msg =
         err.response?.data?.error?.message ||
+        err.message ||
         'Failed to parse statement. Please check file format and try again.';
       setError(msg);
       setLoading(false);
@@ -122,9 +131,26 @@ export default function UploadStatement() {
       {error && (
         <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2.5">
           <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
-          <div>
-            <p className="font-semibold text-rose-950">Import Failed</p>
+          <div className="flex-1">
+            <p className="font-semibold text-rose-950">Import Issue</p>
             <p className="mt-0.5">{error}</p>
+            {error.toLowerCase().includes('log in') && (
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const { authService } = await import('../services/authService.js');
+                    await authService.loginDemo();
+                    setError('');
+                  } catch (e) {
+                    window.location.href = '/login';
+                  }
+                }}
+                className="mt-2.5 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-brand-600 text-white font-semibold text-xs shadow-xs hover:bg-brand-700 transition"
+              >
+                <span>Activate Local Session & Continue</span>
+              </button>
+            )}
           </div>
         </div>
       )}

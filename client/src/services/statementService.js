@@ -7,7 +7,7 @@ export const statementService = {
 
     const res = await api.post('/statements/preview', formData, {
       headers: {
-        'Content-Type': 'multipart/form-data',
+        'Content-Type': undefined,
       },
     });
     return res.data;

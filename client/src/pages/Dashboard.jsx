@@ -15,6 +15,7 @@ import {
   Building2,
   ShieldCheck,
   HeartPulse,
+  FileSpreadsheet,
 } from 'lucide-react';
 import {
   ResponsiveContainer,

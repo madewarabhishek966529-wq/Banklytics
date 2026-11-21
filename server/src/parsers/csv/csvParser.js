@@ -6,20 +6,28 @@ import { parseRupeesToPaise } from '../../utils/money.js';
  * Common column name mappings for bank statement CSVs
  */
 const COLUMN_ALIASES = {
-  date: ['date', 'txn date', 'transaction date', 'value date', 'posting date', 'trans date'],
-  description: ['narration', 'description', 'particulars', 'remarks', 'details', 'transaction remarks'],
-  debit: ['debit', 'withdrawal', 'dr', 'withdrawals', 'debit amount', 'withdrawal amount', 'dr amount'],
-  credit: ['credit', 'deposit', 'cr', 'deposits', 'credit amount', 'deposit amount', 'cr amount'],
-  amount: ['amount', 'txn amount', 'transaction amount', 'net amount'],
-  type: ['type', 'cr/dr', 'txn type', 'transaction type', 'dr_cr'],
-  balance: ['balance', 'closing balance', 'running balance', 'bal', 'net balance'],
-  reference: ['ref', 'reference', 'chq / ref no', 'utr', 'cheque no', 'transaction id', 'ref no'],
+  date: ['date', 'txn date', 'transaction date', 'value date', 'posting date', 'trans date', 'booking date', 'value dt'],
+  description: ['narration', 'description', 'particulars', 'remarks', 'details', 'transaction remarks', 'transaction details', 'desc', 'transaction description'],
+  debit: ['debit', 'withdrawal', 'dr', 'withdrawals', 'debit amount', 'withdrawal amount', 'dr amount', 'withdrawal amt', 'debit amt', 'dr.'],
+  credit: ['credit', 'deposit', 'cr', 'deposits', 'credit amount', 'deposit amount', 'cr amount', 'deposit amt', 'credit amt', 'cr.'],
+  amount: ['amount', 'txn amount', 'transaction amount', 'net amount', 'amt', 'total amount'],
+  type: ['type', 'cr/dr', 'txn type', 'transaction type', 'dr_cr', 'entry type'],
+  balance: ['balance', 'closing balance', 'running balance', 'bal', 'net balance', 'closing bal', 'available balance'],
+  reference: ['ref', 'reference', 'chq / ref no', 'chq/ref no', 'utr', 'cheque no', 'transaction id', 'ref no', 'chq no', 'cheque / ref no'],
 };
 
 function matchColumn(headerName) {
-  const clean = headerName.toLowerCase().trim().replace(/[^a-z0-9/ ]/g, '');
+  if (!headerName) return null;
+  const clean = String(headerName).toLowerCase().trim().replace(/[^a-z0-9/ ]/g, '').replace(/\s+/g, ' ');
+  const cleanNoSpace = clean.replace(/\s+/g, '');
   for (const [canonical, aliases] of Object.entries(COLUMN_ALIASES)) {
-    if (aliases.some((alias) => clean === alias || clean.includes(alias))) {
+    if (
+      aliases.some((alias) => {
+        const cleanAlias = alias.replace(/[^a-z0-9/ ]/g, '').replace(/\s+/g, ' ');
+        const aliasNoSpace = cleanAlias.replace(/\s+/g, '');
+        return clean === cleanAlias || clean.includes(cleanAlias) || cleanNoSpace === aliasNoSpace || cleanNoSpace.includes(aliasNoSpace);
+      })
+    ) {
       return canonical;
     }
   }
@@ -41,9 +49,18 @@ export function parseCSV(csvContent, customMapping = null) {
       skip_empty_lines: true,
       relax_column_count: true,
       trim: true,
+      delimiter: [',', ';', '\t', '|'],
     });
   } catch (err) {
-    throw new Error(`Failed to parse CSV syntax: ${err.message}`);
+    try {
+      rawRecords = parse(sanitized, {
+        skip_empty_lines: true,
+        relax_column_count: true,
+        trim: true,
+      });
+    } catch (fallbackErr) {
+      throw new Error(`Failed to parse CSV syntax: ${err.message}`);
+    }
   }
 
   if (!rawRecords || rawRecords.length === 0) {
@@ -54,21 +71,21 @@ export function parseCSV(csvContent, customMapping = null) {
   let headerIndex = -1;
   let detectedMapping = {};
 
-  for (let i = 0; i < Math.min(rawRecords.length, 15); i++) {
+  for (let i = 0; i < Math.min(rawRecords.length, 60); i++) {
     const row = rawRecords[i];
     let matchCount = 0;
     const tempMapping = {};
 
     row.forEach((col, colIdx) => {
       const canonical = matchColumn(String(col));
-      if (canonical && !tempMapping[canonical]) {
+      if (canonical && tempMapping[canonical] === undefined) {
         tempMapping[canonical] = colIdx;
         matchCount++;
       }
     });
 
     // If at least date and (description or amount/debit/credit) are matched
-    if (matchCount >= 2 && tempMapping.date !== undefined) {
+    if (matchCount >= 2 && tempMapping.date !== undefined && (tempMapping.description !== undefined || tempMapping.amount !== undefined || tempMapping.debit !== undefined || tempMapping.credit !== undefined)) {
       headerIndex = i;
       detectedMapping = tempMapping;
       break;

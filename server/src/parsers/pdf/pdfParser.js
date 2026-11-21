@@ -17,6 +17,9 @@ export async function parsePDF(pdfBuffer) {
   try {
     data = await pdfParse(pdfBuffer);
   } catch (err) {
+    if (err.message && (err.message.toLowerCase().includes('password') || err.message.toLowerCase().includes('encrypted'))) {
+      throw new Error('This PDF is password-protected. Please remove the password and try uploading again.');
+    }
     throw new Error(`Failed to read PDF document: ${err.message}`);
   }
 
@@ -69,10 +72,8 @@ export async function parsePDF(pdfBuffer) {
     }
   }
 
-  // Regex for transactions starting with DD/MM/YYYY or DD-MM-YYYY
-  // Format example: 12/01/2026 UPI/Zomato/12345 540.00 0.00 45,210.50
-  // Or: 15/01/2026 SALARY CREDIT CR 50000.00 95210.50
-  const dateRegex = /^(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})\b/;
+  // Regex for transactions starting with DD/MM/YYYY, DD-MM-YYYY, DD-MMM-YYYY or optional line number
+  const dateRegex = /(?:^|^\s*\d+\s+)(\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}|\d{1,2}[-/.\s](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[-/.\s]\d{2,4}|\d{4}[-/.]\d{1,2}[-/.]\d{1,2})\b/i;
   const amountPattern = /([0-9,]+\.\d{2})/g;
 
   let rowCounter = 0;

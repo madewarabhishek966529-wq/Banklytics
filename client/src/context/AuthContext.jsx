@@ -10,7 +10,8 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     async function loadUser() {
       const stored = localStorage.getItem('banklytics_user');
-      if (stored) {
+      const token = localStorage.getItem('banklytics_token');
+      if (stored && token) {
         try {
           setUser(JSON.parse(stored));
         } catch (e) {
@@ -23,33 +24,49 @@ export function AuthProvider({ children }) {
         if (data && data.user) {
           setUser(data.user);
           localStorage.setItem('banklytics_user', JSON.stringify(data.user));
+          setLoading(false);
+          return;
         }
       } catch (err) {
-        // If unauthenticated or token expired, clear local state
-        setUser(null);
-        localStorage.removeItem('banklytics_user');
-        localStorage.removeItem('banklytics_token');
-      } finally {
-        setLoading(false);
+        // Token was invalid or not present
       }
+
+      // Local-first auto-onboarding: If not logged in and not explicitly logged out,
+      // seamlessly initialize a local demo session
+      const isLoggedOut = localStorage.getItem('banklytics_logged_out') === 'true';
+      if (!isLoggedOut) {
+        try {
+          const demoData = await authService.loginDemo();
+          if (demoData && demoData.user) {
+            setUser(demoData.user);
+          }
+        } catch (demoErr) {
+          console.warn('Local session initialization notice:', demoErr.message);
+        }
+      }
+
+      setLoading(false);
     }
 
     loadUser();
   }, []);
 
   const login = async (email, password) => {
+    localStorage.removeItem('banklytics_logged_out');
     const data = await authService.login(email, password);
     setUser(data.user);
     return data;
   };
 
   const register = async (name, email, password) => {
+    localStorage.removeItem('banklytics_logged_out');
     const data = await authService.register(name, email, password);
     setUser(data.user);
     return data;
   };
 
   const logout = async () => {
+    localStorage.setItem('banklytics_logged_out', 'true');
     await authService.logout();
     setUser(null);
   };

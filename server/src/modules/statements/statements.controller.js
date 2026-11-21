@@ -75,8 +75,11 @@ export async function previewStatement(req, res, next) {
     const { transactions, rejectedRows = [], warnings = [], metadata = {}, bankName } = parsedResult;
 
     if (isDuplicate) {
+      const importedDate = existingStatement.createdAt
+        ? new Date(existingStatement.createdAt).toLocaleDateString()
+        : 'previously';
       warnings.unshift(
-        `Notice: A statement with this identical file hash was already imported on ${existingStatement.createdAt.toLocaleDateString()}. Duplicate transactions may be flagged.`
+        `Notice: A statement with this identical file hash was already imported on ${importedDate}. Duplicate transactions may be flagged.`
       );
     }
 
